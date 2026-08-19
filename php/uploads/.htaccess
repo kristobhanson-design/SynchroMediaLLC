@@ -1,0 +1,47 @@
+# ============================================================================
+#  /uploads/ — user-supplied files. NOTHING here may ever execute.
+#
+#  This is the single most important file in the deployment (PLAN.md §6.2).
+#  If an attacker gets any file onto the server, this is what stops it being
+#  code. It must be deployed BEFORE the upload endpoint goes live, and must
+#  never be removed by a deploy.
+#
+#  Note: the widely-copied `php_flag engine off` is NOT used here. That
+#  directive only exists under mod_php; SiteGround runs PHP-FPM, where an
+#  unrecognised php_flag throws a 500 and takes the whole directory down.
+#  The directives below are handler-independent and work on Apache 2.4.
+# ============================================================================
+
+# Deny direct access to anything remotely executable, whatever the handler.
+<FilesMatch "(?i)\.(php|phtml|phps|php[0-9]|phar|inc|cgi|pl|py|rb|sh|lua|htaccess|htpasswd)$">
+  Require all denied
+</FilesMatch>
+
+# Strip any interpreter association these extensions might otherwise inherit.
+RemoveHandler .php .phtml .phps .php3 .php4 .php5 .php7 .php8 .phar .cgi .pl .py
+RemoveType    .php .phtml .phps .php3 .php4 .php5 .php7 .php8 .phar
+
+# No CGI, no directory listing, no symlink following, no content negotiation
+# (which could serve foo.php for a request to foo).
+Options -ExecCGI -Indexes -FollowSymLinks -MultiViews
+
+# Belt and braces: force everything served from here to be treated as a plain
+# download rather than interpreted or sniffed by the browser.
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Content-Security-Policy "default-src 'none'; sandbox"
+</IfModule>
+
+# Image variants are immutable — filenames contain a UUID, so a changed image
+# is always a new filename. Cache hard.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/avif "access plus 1 year"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "(?i)\.(webp|jpe?g|avif|png)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

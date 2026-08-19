@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Synchro Media LLC — synchromediallc.com
 
-## Getting Started
+Automotive photography and video for dealerships, private owners and car events
+across metro Atlanta.
 
-First, run the development server:
+## Documentation
+
+| | |
+|---|---|
+| [PLAN.md](PLAN.md) | Architecture, design direction, data model, build phases. Start here |
+| [docs/SETUP.md](docs/SETUP.md) | Account setup steps — Supabase, SiteGround, Cloudflare, GitHub |
+
+## Architecture in one paragraph
+
+The public site is a **statically exported Next.js app** served by
+**SiteGround** (which cannot run Node). Content lives in **Supabase**
+(Postgres + Auth); the admin panel at `/admin` is a browser app that talks to
+it directly, so **RLS is the only security boundary** — see PLAN.md §5.1.
+Images are uploaded to a small **PHP + Imagick service** on SiteGround that
+generates responsive variants at upload time (§2.5, §6). Publishing triggers a
+**GitHub Actions** rebuild and SFTP deploy (§2.4).
+
+## Local development
+
+Requires Node 24 LTS.
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill in Supabase values
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+npm run build
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`next build` emits the deployable site to `out/`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Layout
 
-## Learn More
+```
+src/            Next.js app (public site + admin)
+supabase/
+  migrations/   Schema, RLS policies, seed content
+  functions/    Edge Functions (quote form) — Phase 7
+php/            Image service + Apache config, deployed to SiteGround
+  .htaccess     Security headers (next.config `headers` is unavailable here)
+  api/          upload.php / delete.php — Phase 4
+  uploads/      Persistent image storage. NEVER wiped by a deploy
+docs/
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Non-obvious things
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **`php/uploads/.htaccess` is the most important file in the repo.** It stops
+  anything in the upload directory from executing. It deliberately avoids
+  `php_flag engine off`, which 500s under PHP-FPM.
+- **Deploys must not delete `uploads/` or `api/`.** The SFTP sync excludes
+  them; they are server state, not build output.
+- **`headers` in `next.config.ts` does nothing** under `output: 'export'`.
+  Security headers live in `php/.htaccess`.
+- **Image variant widths are declared in three places** and must stay in sync:
+  `src/lib/images.ts`, `next.config.ts`, and `php/api/upload.php`.

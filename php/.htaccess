@@ -1,0 +1,30 @@
+# ============================================================================
+#  Document root .htaccess
+#
+#  Security headers live here rather than in next.config.ts: the `headers`
+#  option is unsupported under output:'export' (verified against the Next 16
+#  static-export docs), so Apache is the only place they can be set.
+#
+#  Deployed to public_html/. See docs/DEPLOYMENT.md.
+# ============================================================================
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  # HSTS: only meaningful once HTTPS is confirmed working end to end.
+  # Uncomment at launch (Phase 9), not before — it is hard to walk back.
+  # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+  # The admin panel and API responses must never be cached by Cloudflare.
+  <FilesMatch "(?i)\.(php)$">
+    Header always set Cache-Control "no-store, no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+Options -Indexes -MultiViews
+
+# Static export is built with trailingSlash:true, so /work/ resolves to
+# /work/index.html natively. Serve the exported 404 for anything unmatched.
+ErrorDocument 404 /404.html
