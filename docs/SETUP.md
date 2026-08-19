@@ -9,14 +9,20 @@ Work through them in order; each section says what to send me when it's done.
 
 ## 1. Supabase project
 
+> **Project created:** ref `gxzxlcopknxzcfpphyyv`
+> → `https://gxzxlcopknxzcfpphyyv.supabase.co`
+
 1. Sign up at [supabase.com](https://supabase.com) and create a project.
    - **Name:** `synchro-media`
    - **Region:** `us-east-1` (N. Virginia) — closest to Atlanta
    - **Plan:** Free
    - Save the database password somewhere safe; it is shown once.
 2. Wait for provisioning (~2 min).
-3. Open **SQL Editor** and run the three files in `supabase/migrations/`
-   **in filename order**, one at a time:
+3. **Migrations.** Once the Supabase MCP server is authenticated (see below),
+   I can apply these myself and verify the result — you don't need to do this
+   step manually. If you'd rather run them by hand, open **SQL Editor** and run
+   the three files in `supabase/migrations/` **in filename order**, one at a
+   time:
    - `20260819000001_schema.sql`
    - `20260819000002_rls.sql`
    - `20260819000003_seed.sql`
