@@ -1,24 +1,32 @@
-/**
- * Placeholder home page.
- *
- * Phase 1 is foundation only — the real pages are built in Phase 3 against the
- * design system from Phase 2. This exists so the static export has a route to
- * emit and so the token wiring is visible.
- */
+import ScrollScrub from "@/components/hero/ScrollScrub";
+
 export default function Home() {
   return (
-    <main className="flex flex-1 items-center justify-center px-6">
-      <div className="max-w-xl">
-        <p className="label mb-6">Synchro Media LLC · Atlanta, GA</p>
-        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-paper">
-          Vehicles, shot properly.
-        </h1>
-        <p className="mt-5 text-muted leading-relaxed">
-          Site under construction. Listing photography, private commissions and
-          event coverage across metro Atlanta.
-        </p>
-        <div className="mt-8 h-px w-24 bg-line" />
-      </div>
-    </main>
+    <>
+      <a href="#main" className="sr-only focus:not-sr-only absolute left-4 top-4 z-50 bg-surface px-4 py-2">
+        Skip to content
+      </a>
+
+      <ScrollScrub />
+
+      {/* The page below the hero. Phase 3 builds this out properly; what is
+          here exists so the hero has somewhere to land and the scroll can be
+          tested end to end. */}
+      <main id="main" tabIndex={-1} className="relative bg-ink">
+        <section className="mx-auto max-w-5xl px-8 py-28 sm:py-36">
+          <p className="label mb-5">What this is</p>
+          <h2 className="max-w-[22ch] text-3xl sm:text-4xl font-normal tracking-tight leading-[1.12]">
+            Most vehicle photos are taken in a hurry, in bad light, on a phone.
+          </h2>
+          <p className="mt-6 max-w-[62ch] text-lg leading-relaxed text-muted">
+            The difference between that and a considered set of images is the
+            difference between a listing people scroll past and one they stop on.
+            Everything above is a single afternoon on one car, delivered the next
+            morning.
+          </p>
+          <div className="mt-10 h-px w-24 bg-line" />
+        </section>
+      </main>
+    </>
   );
 }

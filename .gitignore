@@ -45,3 +45,6 @@ out/
 
 # Local env
 .env.local
+
+# Source photography — masters stay in Blake's own backup, not the repo
+Media/
