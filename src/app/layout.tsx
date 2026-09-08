@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Michroma } from "next/font/google";
 import "./globals.css";
 
 // next/font downloads at build time and self-hosts the files, so the deployed
 // site makes no request to Google — faster, and no third-party font tracking.
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+// Michroma ships one weight (400) — the hero headline, set uppercase and
+// wide, doesn't need a bolder cut.
+const michroma = Michroma({ variable: "--font-michroma", subsets: ["latin"], weight: "400" });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://synchromediallc.com"),
@@ -28,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${michroma.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
