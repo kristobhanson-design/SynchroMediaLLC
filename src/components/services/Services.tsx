@@ -20,7 +20,8 @@ const CATEGORIES = [
   {
     tag: "Event",
     title: "Event Coverage",
-    blurb: "Cars and Coffee circuits, concours, trackdays — full-lot or full-field coverage, delivered fast.",
+    blurb:
+      "From cars and coffee to afternoon cruises. Full coverage with drone, rollers, group and single pictures, etc. The best way to document your epic car meet.",
     tags: ["Drone", "Social content"],
   },
   {
