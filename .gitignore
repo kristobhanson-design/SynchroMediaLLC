@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except .env.production: every value in it is NEXT_PUBLIC_* and ships
+# inside the static bundle anyway (readable by anyone who views source), so
+# committing it lets CI build without duplicating these as repo secrets.
+!.env.production
 
 # vercel
 .vercel

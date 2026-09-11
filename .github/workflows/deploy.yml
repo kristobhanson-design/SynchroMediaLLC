@@ -1,0 +1,46 @@
+name: Deploy to SiteGround
+
+# PLAN.md §2.4 "the publish pipeline": build the static export and push it
+# straight to the live document root on every push to main. SiteGround runs
+# Apache and can't run a Node server (see next.config.ts), so this ships
+# `out/` over rsync+SSH rather than anything container/server-based.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # .env.production is committed (see .gitignore) — every value in it is
+      # NEXT_PUBLIC_* and already ships inside the built bundle, so there's
+      # nothing here for GitHub secrets to protect.
+      - run: npm run build
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "${{ secrets.SITEGROUND_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.SITEGROUND_PORT }}" "${{ secrets.SITEGROUND_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy static export via rsync
+        run: |
+          rsync -az --delete \
+            --exclude='.well-known' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SITEGROUND_PORT }}" \
+            out/ "${{ secrets.SITEGROUND_USERNAME }}@${{ secrets.SITEGROUND_HOST }}:${{ secrets.SITEGROUND_PATH }}"
