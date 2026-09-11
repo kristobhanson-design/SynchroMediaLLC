@@ -40,7 +40,39 @@ jobs:
 
       - name: Deploy static export via rsync
         run: |
+          # /api and /uploads are excluded here (and synced separately,
+          # below) because they don't exist in `out/` at all — without the
+          # excludes, --delete would see them as "removed" from the source
+          # and wipe them, taking every uploaded image with it. Same reason
+          # .htaccess is excluded: php/.htaccess is the real document-root
+          # file (see its own header comment) and Next's export doesn't
+          # produce one.
           rsync -az --delete \
             --exclude='.well-known' \
+            --exclude='/api' \
+            --exclude='/uploads' \
+            --exclude='/.htaccess' \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SITEGROUND_PORT }}" \
             out/ "${{ secrets.SITEGROUND_USERNAME }}@${{ secrets.SITEGROUND_HOST }}:${{ secrets.SITEGROUND_PATH }}"
+
+      - name: Deploy PHP image service (code only — /uploads content is never touched here)
+        run: |
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SITEGROUND_PORT }} \
+            "${{ secrets.SITEGROUND_USERNAME }}@${{ secrets.SITEGROUND_HOST }}" \
+            "mkdir -p ${{ secrets.SITEGROUND_PATH }}/api ${{ secrets.SITEGROUND_PATH }}/uploads"
+
+          # /api is fully code-managed (safe to --delete: no user data ever
+          # lands here). /uploads only ever receives its .htaccess — real
+          # uploaded images live only on the server and must never be
+          # touched by a deploy.
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SITEGROUND_PORT }}" \
+            php/api/ "${{ secrets.SITEGROUND_USERNAME }}@${{ secrets.SITEGROUND_HOST }}:${{ secrets.SITEGROUND_PATH }}/api/"
+
+          rsync -az \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SITEGROUND_PORT }}" \
+            php/uploads/.htaccess "${{ secrets.SITEGROUND_USERNAME }}@${{ secrets.SITEGROUND_HOST }}:${{ secrets.SITEGROUND_PATH }}/uploads/.htaccess"
+
+          rsync -az \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SITEGROUND_PORT }}" \
+            php/.htaccess "${{ secrets.SITEGROUND_USERNAME }}@${{ secrets.SITEGROUND_HOST }}:${{ secrets.SITEGROUND_PATH }}/.htaccess"
