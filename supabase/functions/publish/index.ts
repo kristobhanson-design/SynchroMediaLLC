@@ -47,7 +47,6 @@ function corsHeaders(origin: string | null) {
   const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "";
   return {
     "Access-Control-Allow-Origin": allow,
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     Vary: "Origin",
   };
@@ -64,7 +63,18 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    // Echo back whatever headers the browser says it's about to send,
+    // instead of a hardcoded list. supabase-js's own client (used here via
+    // functions.invoke(), unlike the quote function's plain fetch() call)
+    // attaches headers a fixed allowlist misses — e.g. x-client-info — which
+    // silently blocks the real request after an apparently-successful
+    // preflight (confirmed via Safari's console: "Request header field
+    // x-client-info is not allowed by Access-Control-Allow-Headers").
+    const requestedHeaders = req.headers.get("access-control-request-headers") ?? "authorization, apikey, content-type";
+    return new Response(null, {
+      status: 204,
+      headers: { ...corsHeaders(origin), "Access-Control-Allow-Headers": requestedHeaders },
+    });
   }
   if (req.method !== "POST") {
     return json({ ok: false, error: "Method not allowed" }, 405, origin);
