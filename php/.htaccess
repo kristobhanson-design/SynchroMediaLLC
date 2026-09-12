@@ -21,6 +21,22 @@
   <FilesMatch "(?i)\.(php)$">
     Header always set Cache-Control "no-store, no-cache, must-revalidate"
   </FilesMatch>
+
+  # HTML pages must always revalidate — this site republishes on every
+  # admin Publish click (PLAN.md §2.4), and SiteGround's own proxy cache
+  # (visible as the response header x-proxy-cache-info) was confirmed
+  # serving stale pages after a real, successful deploy: curl without a
+  # cache-busting query string returned the old content while one with
+  # ?nocache=<ts> returned the just-published content, both against the
+  # same freshly-deployed file (2026-09-12). no-cache (not no-store) still
+  # lets it cache, just forces a revalidation check against Last-Modified/
+  # ETag on every request, which is what actually needs to change on
+  # publish. Static assets (images/js/css, cache-busted by Next's build
+  # hashes or content-addressed filenames) are deliberately NOT covered by
+  # this — they should stay cached hard.
+  <FilesMatch "(?i)\.(html)$">
+    Header always set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
 </IfModule>
 
 Options -Indexes -MultiViews
