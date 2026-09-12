@@ -3,12 +3,20 @@
  * Image upload — PLAN.md §2.5 and §6.2. Auth is handled by _auth.php's
  * require_admin(); everything below only runs once that has passed.
  *
+ * Uses GD, not Imagick. Confirmed via SSH on 2026-09-12 (see
+ * project-admin-panel memory): Imagick isn't installed on this SiteGround
+ * plan at all — not even present-but-disabled, checked the filesystem
+ * directly and found nothing. GD is available and this build supports
+ * WebP (and AVIF, though that's not wired up here — see below).
+ *
  * Deliberately deferred (matches the pattern already used for Resend/
  * Turnstile elsewhere in this project — see project-quote-form-backend
- * memory): the 1200px JPEG fallback, AVIF variants, and a per-session
- * upload rate limit. None of those are load-bearing — this is a single-
- * admin authenticated endpoint, not a public one — and src/lib/images.ts
- * only ever requests the WebP variants generated below.
+ * memory): a JPEG fallback, AVIF variants (this GD build can produce them,
+ * but src/lib/images.ts and next.config.ts would both need updating to
+ * pick between formats per-browser — real work beyond just getting
+ * uploads working), and a per-session upload rate limit. None of those
+ * are load-bearing — this is a single-admin authenticated endpoint, not a
+ * public one.
  */
 
 require_once __DIR__ . '/_auth.php';
@@ -19,8 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   json_response(405, ['ok' => false, 'error' => 'Method not allowed']);
 }
 
-if (!extension_loaded('imagick')) {
-  json_response(500, ['ok' => false, 'error' => 'Imagick is not available on this server']);
+if (!extension_loaded('gd') || !function_exists('imagewebp')) {
+  json_response(500, ['ok' => false, 'error' => 'GD with WebP support is not available on this server']);
 }
 
 // Keep in sync with src/lib/images.ts VARIANT_WIDTHS.
@@ -54,52 +62,76 @@ if ($info === false || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGE
   json_response(400, ['ok' => false, 'error' => 'File is not a valid JPEG, PNG, or WebP image']);
 }
 
-try {
-  $source = new Imagick($tmpPath);
-  $source->autoOrient();
-} catch (\Throwable $e) {
+$source = @imagecreatefromstring(file_get_contents($tmpPath));
+if ($source === false) {
   json_response(400, ['ok' => false, 'error' => 'Could not decode image']);
 }
 
-$origWidth = $source->getImageWidth();
-$origHeight = $source->getImageHeight();
+// GD has no built-in auto-orient (Imagick's autoOrient()) — apply the EXIF
+// orientation tag by hand. Only JPEGs carry one.
+if ($info[2] === IMAGETYPE_JPEG) {
+  $exif = @exif_read_data($tmpPath);
+  $orientation = $exif['Orientation'] ?? 1;
+  $rotated = match ($orientation) {
+    3 => imagerotate($source, 180, 0),
+    6 => imagerotate($source, -90, 0),
+    8 => imagerotate($source, 90, 0),
+    default => null,
+  };
+  if ($rotated !== null) {
+    imagedestroy($source);
+    $source = $rotated;
+  }
+}
+
+$origWidth = imagesx($source);
+$origHeight = imagesy($source);
+
+/** Resizes to fit within $targetWidth, preserving aspect ratio, never upscaling. */
+function resized(\GdImage $src, int $srcWidth, int $srcHeight, int $targetWidth): \GdImage {
+  $targetWidth = min($targetWidth, $srcWidth);
+  $targetHeight = max(1, (int) round($srcHeight * ($targetWidth / $srcWidth)));
+  $dst = imagecreatetruecolor($targetWidth, $targetHeight);
+  // Preserve alpha for PNG/WebP sources with transparency.
+  imagealphablending($dst, false);
+  imagesavealpha($dst, true);
+  imagecopyresampled($dst, $src, 0, 0, 0, 0, $targetWidth, $targetHeight, $srcWidth, $srcHeight);
+  return $dst;
+}
 
 // Server-generated filename only — no path segment ever comes from user
 // input (PLAN.md §6.2 "Server-generated filenames").
 $uuid = bin2hex(random_bytes(16));
 $dir = __DIR__ . '/../uploads/' . $projectId;
 if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-  $source->destroy();
+  imagedestroy($source);
   json_response(500, ['ok' => false, 'error' => 'Could not create upload directory']);
 }
 
 foreach (VARIANT_WIDTHS as $width) {
-  $variant = clone $source;
-  // Never upscale past the original — the written filename still uses the
-  // nominal width so src/lib/images.ts's fixed variant set stays correct
-  // even for a source narrower than one of the larger breakpoints.
-  $targetWidth = min($width, $origWidth);
-  $variant->resizeImage($targetWidth, 0, Imagick::FILTER_LANCZOS, 1);
-  $variant->setImageFormat('webp');
-  $variant->setImageCompressionQuality(82);
-  $variant->stripImage();
-  $variant->writeImage("$dir/$uuid-$width.webp");
-  $variant->clear();
-  $variant->destroy();
+  // The written filename always uses the nominal width so
+  // src/lib/images.ts's fixed variant set stays correct even for a source
+  // narrower than one of the larger breakpoints — resized() itself caps
+  // the actual pixel content at the original size.
+  $variant = resized($source, $origWidth, $origHeight, $width);
+  imagewebp($variant, "$dir/$uuid-$width.webp", 82);
+  imagedestroy($variant);
 }
 
-// 20px blur placeholder, inlined as base64 (PLAN.md §2.5 step 5).
-$blur = clone $source;
-$blur->resizeImage(24, 0, Imagick::FILTER_LANCZOS, 1);
-$blur->blurImage(0, 4);
-$blur->setImageFormat('webp');
-$blur->setImageCompressionQuality(40);
-$blurDataUrl = 'data:image/webp;base64,' . base64_encode($blur->getImageBlob());
-$blur->clear();
-$blur->destroy();
+// 20px blur placeholder, inlined as base64 (PLAN.md §2.5 step 5). GD's
+// Gaussian blur filter is mild per application, so it's applied a few
+// times to get a real blur rather than a light softening.
+$blur = resized($source, $origWidth, $origHeight, 24);
+for ($i = 0; $i < 6; $i++) {
+  imagefilter($blur, IMG_FILTER_GAUSSIAN_BLUR);
+}
+ob_start();
+imagewebp($blur, null, 40);
+$blurBytes = ob_get_clean();
+imagedestroy($blur);
+$blurDataUrl = 'data:image/webp;base64,' . base64_encode((string) $blurBytes);
 
-$source->clear();
-$source->destroy();
+imagedestroy($source);
 
 // Extension-less, variant-less base — see project_images.storage_path's
 // comment in the schema migration. Variants live alongside as
