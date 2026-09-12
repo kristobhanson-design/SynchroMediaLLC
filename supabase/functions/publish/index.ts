@@ -6,6 +6,16 @@
 // (.github/workflows/deploy.yml, which already has `workflow_dispatch:`
 // wired up) and then stamps site_meta.last_published_at.
 //
+// verify_jwt is OFF deliberately (2026-09-12, after a real failure): the
+// platform-level JWT gate rejects an invalid/expired token BEFORE this
+// function ever runs, and that gateway-level 401 carries none of the CORS
+// headers below — Safari (and any browser) then reports it as a blocked
+// cross-origin request instead of a readable 401, which is what actually
+// happened when the Dashboard's Publish button was tested for real. This
+// function already implements complete custom authentication itself
+// (server-to-server token validation + admin_users check below), which is
+// exactly the documented exception for turning verify_jwt off.
+//
 // Secrets this function needs (Project Settings → Edge Functions → Secrets,
 // or `supabase secrets set`):
 //   GITHUB_TOKEN  - required. A fine-grained PAT scoped to just this repo,
@@ -26,12 +36,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const DEFAULT_REPO = "kristobhanson-design/SynchroMediaLLC";
 const WORKFLOW_FILE = "deploy.yml";
 
-// Same allowlist as supabase/functions/quote/index.ts. This was missing
-// entirely on first deploy — the browser's CORS preflight (OPTIONS) got a
-// bare 405 with no Access-Control-Allow-Origin header, so every real POST
-// from the Dashboard's Publish button was blocked before it ever reached
-// this function ("Failed to send a request to the Edge Function" in the
-// browser, confirmed via function_edge_logs showing OPTIONS 405s).
+// Same allowlist as supabase/functions/quote/index.ts.
 const ALLOWED_ORIGINS = new Set([
   "https://synchromediallc.com",
   "https://www.synchromediallc.com",
