@@ -26,22 +26,49 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const DEFAULT_REPO = "kristobhanson-design/SynchroMediaLLC";
 const WORKFLOW_FILE = "deploy.yml";
 
-function json(body: unknown, status: number) {
+// Same allowlist as supabase/functions/quote/index.ts. This was missing
+// entirely on first deploy — the browser's CORS preflight (OPTIONS) got a
+// bare 405 with no Access-Control-Allow-Origin header, so every real POST
+// from the Dashboard's Publish button was blocked before it ever reached
+// this function ("Failed to send a request to the Edge Function" in the
+// browser, confirmed via function_edge_logs showing OPTIONS 405s).
+const ALLOWED_ORIGINS = new Set([
+  "https://synchromediallc.com",
+  "https://www.synchromediallc.com",
+  "http://localhost:3000",
+]);
+
+function corsHeaders(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "";
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin",
+  };
+}
+
+function json(body: unknown, status: number, origin: string | null) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
   });
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("origin");
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+  }
   if (req.method !== "POST") {
-    return json({ ok: false, error: "Method not allowed" }, 405);
+    return json({ ok: false, error: "Method not allowed" }, 405, origin);
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) {
-    return json({ ok: false, error: "Missing Authorization header" }, 401);
+    return json({ ok: false, error: "Missing Authorization header" }, 401, origin);
   }
 
   const supabase = createClient(
@@ -54,7 +81,7 @@ Deno.serve(async (req) => {
   // same shape of check as php/api/_auth.php's require_admin().
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
   if (userError || !userData?.user) {
-    return json({ ok: false, error: "Invalid or expired session" }, 401);
+    return json({ ok: false, error: "Invalid or expired session" }, 401, origin);
   }
 
   const { data: adminRow } = await supabase
@@ -63,7 +90,7 @@ Deno.serve(async (req) => {
     .eq("user_id", userData.user.id)
     .maybeSingle();
   if (!adminRow) {
-    return json({ ok: false, error: "Not authorized" }, 403);
+    return json({ ok: false, error: "Not authorized" }, 403, origin);
   }
 
   const githubToken = Deno.env.get("GITHUB_TOKEN");
@@ -71,6 +98,7 @@ Deno.serve(async (req) => {
     return json(
       { ok: false, error: "Publish isn't configured yet — the GITHUB_TOKEN Edge Function secret is missing." },
       500,
+      origin,
     );
   }
   const repo = Deno.env.get("GITHUB_REPO") || DEFAULT_REPO;
@@ -91,7 +119,7 @@ Deno.serve(async (req) => {
 
   if (!dispatchRes.ok) {
     console.error("GitHub workflow dispatch failed", dispatchRes.status, await dispatchRes.text());
-    return json({ ok: false, error: "Could not start the deploy. Check the function logs." }, 502);
+    return json({ ok: false, error: "Could not start the deploy. Check the function logs." }, 502, origin);
   }
 
   // Optimistic: the dispatch succeeded and every real run of this workflow
@@ -107,5 +135,5 @@ Deno.serve(async (req) => {
     console.error("site_meta update failed", updateError);
   }
 
-  return json({ ok: true }, 200);
+  return json({ ok: true }, 200, origin);
 });
