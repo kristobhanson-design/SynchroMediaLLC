@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import { useReveal } from "@/hooks/useReveal";
 
-export default function SocialContent() {
+export default function SocialContent({
+  eyebrow,
+  headline,
+  body,
+}: {
+  eyebrow: string;
+  headline: string;
+  body: string;
+}) {
   const [reduced, setReduced] = useState(false);
   const ref = useReveal<HTMLDivElement>();
 
@@ -29,12 +37,9 @@ export default function SocialContent() {
             )}
           </div>
           <div className="content-text">
-            <p className="eyebrow">Social Content</p>
-            <h2>Built for the feed.</h2>
-            <p>
-              Short form videos that perform. From fast paced trending videos to slow, smooth,
-              and cinematic eye catchers the choice is yours.
-            </p>
+            <p className="eyebrow">{eyebrow}</p>
+            <h2>{headline}</h2>
+            <p>{body}</p>
             <div className="tag-row">
               <span className="mini">Instagram</span>
               <span className="mini">TikTok</span>

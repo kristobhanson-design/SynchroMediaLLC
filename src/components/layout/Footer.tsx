@@ -1,10 +1,12 @@
-export default function Footer() {
+export default function Footer({ companyName, tagline }: { companyName: string; tagline: string }) {
   return (
     <footer>
       <div className="wrap footer-row">
         <div>
-          <span className="brand-text">Synchro Media LLC</span>
-          <div className="fine">Metro Atlanta, GA · © 2026</div>
+          <span className="brand-text">{companyName}</span>
+          <div className="fine">
+            {tagline} · © {new Date().getFullYear()}
+          </div>
         </div>
         <div className="footer-links">
           <a href="#home">Home</a>

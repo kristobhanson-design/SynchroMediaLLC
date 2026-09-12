@@ -8,7 +8,21 @@ type Status = "idle" | "submitting" | "success" | "error";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export default function Contact() {
+export default function Contact({
+  eyebrow,
+  heading,
+  body,
+  successMessage,
+  email,
+  ownerName,
+}: {
+  eyebrow: string;
+  heading: string;
+  body: string;
+  successMessage: string;
+  email: string;
+  ownerName: string;
+}) {
   const headRef = useReveal<HTMLDivElement>();
   const formRef = useReveal<HTMLFormElement>();
   const infoRef = useReveal<HTMLDivElement>();
@@ -78,12 +92,9 @@ export default function Contact() {
     <section className="block" id="contact">
       <div className="wrap">
         <div ref={headRef} className="section-head reveal">
-          <p className="eyebrow">Contact</p>
-          <h2>Tell us about the shoot.</h2>
-          <p>
-            Shoots depend on weather and light more than a calendar does — share your preferred
-            dates and how flexible you are, and we&apos;ll confirm by reply.
-          </p>
+          <p className="eyebrow">{eyebrow}</p>
+          <h2>{heading}</h2>
+          <p>{body}</p>
         </div>
         <div className="contact-grid">
           <form ref={formRef} className="quote-form reveal" onSubmit={handleSubmit}>
@@ -141,7 +152,7 @@ export default function Contact() {
 
             {status === "success" ? (
               <p role="status" style={{ color: "var(--ink)", margin: 0 }}>
-                Got it — I&apos;ll be in touch within one business day.
+                {successMessage}
               </p>
             ) : (
               <>
@@ -162,12 +173,12 @@ export default function Contact() {
               <h3>Direct contact</h3>
               <div className="info-row">
                 <span className="k">Name</span>
-                <span className="v">Kristopher Hanson</span>
+                <span className="v">{ownerName}</span>
               </div>
               <div className="info-row">
                 <span className="k">Email</span>
-                <a className="v" href="mailto:Khanson@SynchroMediaLLC.com">
-                  Khanson@SynchroMediaLLC.com
+                <a className="v" href={`mailto:${email}`}>
+                  {email}
                 </a>
               </div>
             </div>

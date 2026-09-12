@@ -20,7 +20,7 @@
  */
 const TALL_QUERY = "(max-width: 860px), (orientation: portrait) and (pointer: coarse)";
 
-export default function VideoHero() {
+export default function VideoHero({ headline, subhead }: { headline: string; subhead: string }) {
   return (
     <section id="home">
       <div className="hero-visual">
@@ -36,8 +36,8 @@ export default function VideoHero() {
         <img className="hero-poster hero-fg hero-static-fallback" src="/hero/video/poster.jpg" alt="" aria-hidden="true" />
         <div className="wrap hero-content">
           <h1>
-            Cars, shot to sell.
-            <span className="dim-line">Content, made to share.</span>
+            {headline}
+            <span className="dim-line">{subhead}</span>
           </h1>
         </div>
       </div>

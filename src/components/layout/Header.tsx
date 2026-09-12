@@ -11,62 +11,61 @@ const NAV_ITEMS = [
   { id: "contact", label: "Contact" },
 ];
 
-const SOCIAL_LINKS = [
-  {
-    href: "https://www.instagram.com/synchromediaa",
-    label: "Instagram",
-    path: (
-      <>
-        <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5.5" />
-        <circle cx="12" cy="12" r="4.3" />
-        <circle cx="16.6" cy="7.4" r="0.55" fill="currentColor" stroke="none" />
-      </>
-    ),
-  },
-  {
-    href: "https://www.tiktok.com/@synchromediaa",
-    label: "TikTok",
-    path: (
-      <>
-        <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5.5" />
-        <path d="M13.9 7v7.3a2.6 2.6 0 1 1-2.2-2.57" />
-        <path d="M13.9 7c.4 1.9 1.8 3.1 3.6 3.3" />
-      </>
-    ),
-  },
-  {
-    href: "https://www.facebook.com/profile.php?id=61593813066922",
-    label: "Facebook",
-    path: (
-      <>
-        <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5.5" />
-        <path
-          d="M13.5 9.3h1.3V7.1h-1.6c-1.6 0-2.4 1-2.4 2.5v1.3H9.2v2.2h1.6V17h2.2v-3.9h1.5l.3-2.2h-1.8v-1c0-.4.2-.6.5-.6Z"
-          fill="currentColor"
-          stroke="none"
-        />
-      </>
-    ),
-  },
-  {
-    href: "https://www.youtube.com/@SynchroMediaLLC",
-    label: "YouTube",
-    path: (
-      <>
-        <rect x="1.2" y="5.2" width="21.6" height="13.6" rx="4" />
-        <path d="M10.2 9.1l5.4 2.9-5.4 2.9Z" fill="currentColor" stroke="none" />
-      </>
-    ),
-  },
-];
+// Icon artwork is structural, not editable copy — only the hrefs (passed in
+// as props, sourced from site_content) are content-managed.
+const SOCIAL_ICONS = {
+  instagram: (
+    <>
+      <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5.5" />
+      <circle cx="12" cy="12" r="4.3" />
+      <circle cx="16.6" cy="7.4" r="0.55" fill="currentColor" stroke="none" />
+    </>
+  ),
+  tiktok: (
+    <>
+      <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5.5" />
+      <path d="M13.9 7v7.3a2.6 2.6 0 1 1-2.2-2.57" />
+      <path d="M13.9 7c.4 1.9 1.8 3.1 3.6 3.3" />
+    </>
+  ),
+  facebook: (
+    <>
+      <rect x="2.8" y="2.8" width="18.4" height="18.4" rx="5.5" />
+      <path
+        d="M13.5 9.3h1.3V7.1h-1.6c-1.6 0-2.4 1-2.4 2.5v1.3H9.2v2.2h1.6V17h2.2v-3.9h1.5l.3-2.2h-1.8v-1c0-.4.2-.6.5-.6Z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </>
+  ),
+  youtube: (
+    <>
+      <rect x="1.2" y="5.2" width="21.6" height="13.6" rx="4" />
+      <path d="M10.2 9.1l5.4 2.9-5.4 2.9Z" fill="currentColor" stroke="none" />
+    </>
+  ),
+};
 
-function SocialIcons({ className }: { className: string }) {
+export interface SocialLinks {
+  instagram: string;
+  tiktok: string;
+  facebook: string;
+  youtube: string;
+}
+
+function SocialIcons({ className, socialLinks }: { className: string; socialLinks: SocialLinks }) {
   return (
     <div className={className}>
-      {SOCIAL_LINKS.map((s) => (
-        <a key={s.label} href={s.href} aria-label={s.label} target="_blank" rel="noopener">
+      {(Object.keys(SOCIAL_ICONS) as (keyof SocialLinks)[]).map((platform) => (
+        <a
+          key={platform}
+          href={socialLinks[platform]}
+          aria-label={platform[0].toUpperCase() + platform.slice(1)}
+          target="_blank"
+          rel="noopener"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            {s.path}
+            {SOCIAL_ICONS[platform]}
           </svg>
         </a>
       ))}
@@ -74,7 +73,15 @@ function SocialIcons({ className }: { className: string }) {
   );
 }
 
-export default function Header() {
+export default function Header({
+  email,
+  ownerName,
+  socialLinks,
+}: {
+  email: string;
+  ownerName: string;
+  socialLinks: SocialLinks;
+}) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
@@ -144,7 +151,7 @@ export default function Header() {
             </span>
             Menu
           </button>
-          <SocialIcons className="social-links social-links--header" />
+          <SocialIcons className="social-links social-links--header" socialLinks={socialLinks} />
         </div>
         <div className="wrap nav-bar">
           <a className="brand" href="#home">
@@ -184,9 +191,9 @@ export default function Header() {
           ))}
         </nav>
         <div className="side-panel-foot">
-          <p>Kristopher Hanson</p>
-          <a href="mailto:Khanson@SynchroMediaLLC.com">Khanson@SynchroMediaLLC.com</a>
-          <SocialIcons className="social-links social-links--panel" />
+          <p>{ownerName}</p>
+          <a href={`mailto:${email}`}>{email}</a>
+          <SocialIcons className="social-links social-links--panel" socialLinks={socialLinks} />
         </div>
       </aside>
     </>
