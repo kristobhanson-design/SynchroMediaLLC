@@ -57,12 +57,38 @@ export default function Dashboard() {
   async function handlePublish() {
     setState("publishing");
     setError("");
-    const { data, error } = await supabaseBrowser.functions.invoke("publish");
-    if (error || !data?.ok) {
-      setError(error?.message || data?.error || "Publish failed. Please try again.");
+
+    // /api/revalidate (same origin as the admin panel itself now that
+    // there's a real Node server — docs/NODE_MIGRATION.md) replaces the old
+    // supabaseBrowser.functions.invoke("publish") call to a Supabase Edge
+    // Function: that function's whole job was dispatching a GitHub Actions
+    // rebuild for a static export, which no longer exists. See
+    // src/app/api/revalidate/route.ts for what Publish actually does now.
+    const { data: sessionData } = await supabaseBrowser.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      setError("Your session expired — sign in again.");
       setState("error");
       return;
     }
+
+    try {
+      const res = await fetch("/api/revalidate", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setError(data?.error || "Publish failed. Please try again.");
+        setState("error");
+        return;
+      }
+    } catch {
+      setError("Publish failed. Please try again.");
+      setState("error");
+      return;
+    }
+
     await refresh();
   }
 

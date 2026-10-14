@@ -1,5 +1,12 @@
 name: Deploy to SiteGround
 
+# DEPRECATED, pending the SiteGround Node.js migration (see
+# docs/NODE_MIGRATION.md) — once that cutover is confirmed live, delete
+# this workflow entirely along with the SITEGROUND_* GitHub secrets.
+# SiteGround's own Node.js Project connects directly to GitHub and
+# rebuilds itself on push; nothing will need rsync/SSH access any more.
+# Still required on `main` until then.
+#
 # PLAN.md §2.4 "the publish pipeline": build the static export and push it
 # straight to the live document root on every push to main. SiteGround runs
 # Apache and can't run a Node server (see next.config.ts), so this ships

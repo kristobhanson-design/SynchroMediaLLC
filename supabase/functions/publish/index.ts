@@ -1,3 +1,12 @@
+// DEPRECATED, pending the SiteGround Node.js migration (see
+// docs/NODE_MIGRATION.md) — once that cutover is verified live, this
+// function should be deleted and `supabase functions delete publish` run.
+// Dashboard.tsx's Publish button has already moved to
+// src/app/api/revalidate/route.ts, a same-origin Next.js route, instead of
+// this. This function is left running (not deleted) only because `main`
+// still deploys the old static-export pipeline until the Node.js Project
+// is set up and cut over — see that doc for why.
+//
 // Synchro Media — admin "Publish" action (PLAN.md §2.4 "the publish
 // pipeline"). The public site is a static export baked at build time, so an
 // admin edit to Supabase content isn't live until a rebuild runs. This

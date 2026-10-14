@@ -34,15 +34,18 @@ interface Project {
   sort_order: number;
 }
 
-// Set in .env.local / .env.production — the PHP image service on SiteGround
-// (php/api/upload.php, php/api/delete.php). See PLAN.md §2.5 and §6.2: it
-// authenticates via the caller's Supabase access token, never holds the
-// service role key, and never trusts a client-supplied filename.
-const UPLOAD_API = process.env.NEXT_PUBLIC_UPLOAD_API_URL;
+// src/app/api/upload/route.ts and src/app/api/delete/route.ts — same origin
+// as the admin panel itself now that there's a real Node server
+// (docs/NODE_MIGRATION.md), so no base URL env var is needed any more (this
+// used to point at a separate PHP service via NEXT_PUBLIC_UPLOAD_API_URL).
+// Auth still works the same way: the caller's own Supabase access token,
+// never the service role key, and the server never trusts a client-
+// supplied filename — see that route's own comment (PLAN.md §2.5/§6.2).
+const UPLOAD_API = "/api";
 
-// Browser resizes before upload — keeps PHP's Imagick memory use sane on a
-// 24MP source and makes uploads over bad wifi actually complete (PLAN.md
-// §2.5 step 1).
+// Browser resizes before upload — keeps the server's sharp memory use sane
+// on a 24MP source and makes uploads over bad wifi actually complete
+// (PLAN.md §2.5 step 1).
 const MAX_LONG_EDGE = 3000;
 
 function slugify(title: string) {
@@ -221,10 +224,6 @@ function ProjectEditor({
 
   async function handleUpload(fileList: FileList | null) {
     if (!fileList || fileList.length === 0 || !images) return;
-    if (!UPLOAD_API) {
-      setError("NEXT_PUBLIC_UPLOAD_API_URL isn't set — image upload is unavailable.");
-      return;
-    }
     setUploading(true);
     setError("");
 
@@ -246,7 +245,7 @@ function ProjectEditor({
         form.append("project_id", local.id);
         form.append("file", blob, file.name);
 
-        const res = await fetch(`${UPLOAD_API}/upload.php`, {
+        const res = await fetch(`${UPLOAD_API}/upload`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: form,
@@ -291,18 +290,16 @@ function ProjectEditor({
   async function deleteImage(image: ProjectImage) {
     if (!confirm("Delete this image? This can't be undone.")) return;
 
-    if (UPLOAD_API) {
-      const { data: sessionData } = await supabaseBrowser.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (token) {
-        // Best-effort: the DB row is the source of truth for what the site
-        // shows, so a stray orphaned file on disk isn't worth blocking on.
-        await fetch(`${UPLOAD_API}/delete.php`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ storage_path: image.storage_path }),
-        }).catch(() => {});
-      }
+    const { data: sessionData } = await supabaseBrowser.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (token) {
+      // Best-effort: the DB row is the source of truth for what the site
+      // shows, so a stray orphaned object in Storage isn't worth blocking on.
+      await fetch(`${UPLOAD_API}/delete`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ storage_path: image.storage_path }),
+      }).catch(() => {});
     }
 
     await supabaseBrowser.from("project_images").delete().eq("id", image.id);

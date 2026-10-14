@@ -1,5 +1,10 @@
 <?php
 /**
+ * DEPRECATED, pending the SiteGround Node.js migration (see
+ * docs/NODE_MIGRATION.md) — replaced by src/app/api/delete/route.ts. Left
+ * in place, not deleted, only because `main` still deploys the old
+ * static-export+PHP pipeline until the Node.js Project is cut over.
+ *
  * Image delete — PLAN.md §6.2 "Delete endpoint: same auth, plus
  * verification that the target path sits inside /uploads/". Ownership-by-
  * project is skipped: there is exactly one admin account today and

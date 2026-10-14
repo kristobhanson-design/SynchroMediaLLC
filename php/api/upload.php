@@ -1,5 +1,12 @@
 <?php
 /**
+ * DEPRECATED, pending the SiteGround Node.js migration (see
+ * docs/NODE_MIGRATION.md) — replaced by src/app/api/upload/route.ts, which
+ * also moves variant storage off this server's local disk and into
+ * Supabase Storage (see that route's comment for why). Left in place, not
+ * deleted, only because `main` still deploys the old static-export+PHP
+ * pipeline until the Node.js Project is set up and cut over.
+ *
  * Image upload — PLAN.md §2.5 and §6.2. Auth is handled by _auth.php's
  * require_admin(); everything below only runs once that has passed.
  *

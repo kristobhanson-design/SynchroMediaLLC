@@ -1,29 +1,50 @@
+import { unstable_cache } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { variantUrl } from "@/lib/images";
 
 /**
- * Server-side content fetchers — called only from Server Components
- * (page.tsx, layout.tsx) during `next build`. See src/lib/supabase/server.ts:
- * this is the anon-role, unauthenticated client, so it only ever sees what
- * the public-read RLS policies allow (published projects, active services,
- * all of site_content — supabase/migrations/20260820163901_rls_policies.sql).
+ * Server-side content fetchers — called from Server Components (page.tsx,
+ * layout.tsx) at request time. See src/lib/supabase/server.ts: this is the
+ * anon-role, unauthenticated client, so it only ever sees what the
+ * public-read RLS policies allow (published projects, active services, all
+ * of site_content — supabase/migrations/20260820163901_rls_policies.sql).
  *
- * Until 2026-09-12 the public site never called any of this — every public
- * component had its copy, services, and portfolio hardcoded from the
- * original build, so admin edits saved to Supabase never showed up on a
- * republish. See project-admin-panel memory.
+ * Until 2026-09-12 the public site never called any of this at all — every
+ * public component had its copy, services, and portfolio hardcoded from the
+ * original build. See project-admin-panel memory.
+ *
+ * Until 2026-10-14 this ran once per `next build` only (static export), so
+ * an admin edit only went live after a full rebuild+redeploy — that's what
+ * the old "Publish" button triggered. Now that there's a real Node server
+ * (docs/NODE_MIGRATION.md), every one of these would otherwise be a fresh
+ * Supabase round trip on every single page view, which is both slower and
+ * needless — the content hasn't usually changed since the last visitor.
+ * `unstable_cache` fixes that: each fetcher is cached indefinitely
+ * (`revalidate: false`) under the shared `SITE_CONTENT_TAG`, and
+ * src/app/api/revalidate/route.ts — the new Publish target — calls
+ * `revalidateTag(SITE_CONTENT_TAG, { expire: 0 })` to force the *next*
+ * request to hit Supabase again instead of serving stale cache. One tag
+ * for all three tables, not one each, because the admin Dashboard's
+ * publish-pending check (Dashboard.tsx's `latestUpdate`) already treats a
+ * change to any of them as "needs a publish" — there's no UI distinction
+ * to preserve by splitting the tag further.
  */
+export const SITE_CONTENT_TAG = "site-content";
 
 export type SiteContent = Record<string, string>;
 
-export async function getSiteContent(): Promise<SiteContent> {
-  const { data, error } = await supabaseServer.from("site_content").select("key, value");
-  if (error) {
-    console.error("getSiteContent failed", error);
-    return {};
-  }
-  return Object.fromEntries((data ?? []).map((row) => [row.key, row.value]));
-}
+export const getSiteContent = unstable_cache(
+  async (): Promise<SiteContent> => {
+    const { data, error } = await supabaseServer.from("site_content").select("key, value");
+    if (error) {
+      console.error("getSiteContent failed", error);
+      return {};
+    }
+    return Object.fromEntries((data ?? []).map((row) => [row.key, row.value]));
+  },
+  ["site-content"],
+  { tags: [SITE_CONTENT_TAG], revalidate: false },
+);
 
 export interface ServiceItem {
   slug: string;
@@ -38,23 +59,27 @@ export interface Services {
   styles: ServiceItem[];
 }
 
-export async function getServices(): Promise<Services> {
-  const { data, error } = await supabaseServer
-    .from("services")
-    .select("slug, kind, name, audience, blurb, bullets")
-    .eq("is_active", true)
-    .order("kind")
-    .order("sort_order");
-  if (error) {
-    console.error("getServices failed", error);
-    return { packages: [], styles: [] };
-  }
-  const rows = (data ?? []) as (ServiceItem & { kind: "package" | "style" })[];
-  return {
-    packages: rows.filter((r) => r.kind === "package"),
-    styles: rows.filter((r) => r.kind === "style"),
-  };
-}
+export const getServices = unstable_cache(
+  async (): Promise<Services> => {
+    const { data, error } = await supabaseServer
+      .from("services")
+      .select("slug, kind, name, audience, blurb, bullets")
+      .eq("is_active", true)
+      .order("kind")
+      .order("sort_order");
+    if (error) {
+      console.error("getServices failed", error);
+      return { packages: [], styles: [] };
+    }
+    const rows = (data ?? []) as (ServiceItem & { kind: "package" | "style" })[];
+    return {
+      packages: rows.filter((r) => r.kind === "package"),
+      styles: rows.filter((r) => r.kind === "style"),
+    };
+  },
+  ["services"],
+  { tags: [SITE_CONTENT_TAG], revalidate: false },
+);
 
 export interface ProjectImage {
   url: string;
@@ -84,45 +109,49 @@ function resolveImageUrl(storagePath: string, width: number): string {
   return variantUrl(storagePath, width);
 }
 
-export async function getProjects(): Promise<ProjectSummary[]> {
-  // The FK to disambiguate is spelled out explicitly: projects and
-  // project_images have two foreign keys between them (project_images ->
-  // projects via project_id, and projects -> project_images via
-  // cover_image_id), so PostgREST can't infer which one this embed means
-  // without help — a plain `project_images(...)` 500s with "more than one
-  // relationship was found" (confirmed at build time, not guessed).
-  const { data, error } = await supabaseServer
-    .from("projects")
-    .select(
-      "slug, title, category, location, is_featured, cover_image_id, project_images!project_images_project_id_fkey(id, storage_path, alt_text, sort_order)",
-    )
-    .eq("status", "published")
-    .order("sort_order");
-  if (error) {
-    console.error("getProjects failed", error);
-    return [];
-  }
+export const getProjects = unstable_cache(
+  async (): Promise<ProjectSummary[]> => {
+    // The FK to disambiguate is spelled out explicitly: projects and
+    // project_images have two foreign keys between them (project_images ->
+    // projects via project_id, and projects -> project_images via
+    // cover_image_id), so PostgREST can't infer which one this embed means
+    // without help — a plain `project_images(...)` 500s with "more than one
+    // relationship was found" (confirmed at build time, not guessed).
+    const { data, error } = await supabaseServer
+      .from("projects")
+      .select(
+        "slug, title, category, location, is_featured, cover_image_id, project_images!project_images_project_id_fkey(id, storage_path, alt_text, sort_order)",
+      )
+      .eq("status", "published")
+      .order("sort_order");
+    if (error) {
+      console.error("getProjects failed", error);
+      return [];
+    }
 
-  return (data ?? []).map((row) => {
-    type RawImage = { id: string; storage_path: string; alt_text: string | null; sort_order: number };
-    const rawImages = (row.project_images as RawImage[]).slice().sort((a, b) => a.sort_order - b.sort_order);
+    return (data ?? []).map((row) => {
+      type RawImage = { id: string; storage_path: string; alt_text: string | null; sort_order: number };
+      const rawImages = (row.project_images as RawImage[]).slice().sort((a, b) => a.sort_order - b.sort_order);
 
-    const images = rawImages.map((img) => ({
-      url: resolveImageUrl(img.storage_path, 1440),
-      alt: img.alt_text || row.title,
-    }));
+      const images = rawImages.map((img) => ({
+        url: resolveImageUrl(img.storage_path, 1440),
+        alt: img.alt_text || row.title,
+      }));
 
-    const coverIndex = rawImages.findIndex((img) => img.id === row.cover_image_id);
-    const coverUrl = images[coverIndex === -1 ? 0 : coverIndex]?.url ?? "";
+      const coverIndex = rawImages.findIndex((img) => img.id === row.cover_image_id);
+      const coverUrl = images[coverIndex === -1 ? 0 : coverIndex]?.url ?? "";
 
-    return {
-      slug: row.slug,
-      title: row.title,
-      category: row.category as ProjectSummary["category"],
-      location: row.location,
-      isFeatured: row.is_featured,
-      coverUrl,
-      images,
-    };
-  });
-}
+      return {
+        slug: row.slug,
+        title: row.title,
+        category: row.category as ProjectSummary["category"],
+        location: row.location,
+        isFeatured: row.is_featured,
+        coverUrl,
+        images,
+      };
+    });
+  },
+  ["projects"],
+  { tags: [SITE_CONTENT_TAG], revalidate: false },
+);
